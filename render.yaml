@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: quickserveqr-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+      # Supabase PostgreSQL — paste the "URI" connection string from
+      # Supabase → Settings → Database → Connection string → URI
+      - key: ConnectionStrings__DefaultConnection
+        sync: false   # set manually in Render dashboard
+
+      # Generate a strong random secret: openssl rand -base64 48
+      - key: Jwt__Key
+        generateValue: true
+
+      - key: Jwt__Issuer
+        value: QuickServeQR
+
+      - key: Jwt__Audience
+        value: QuickServeQR-Users
+
+      # Your Vercel frontend URL, e.g. https://quickserve-qr.vercel.app
+      - key: AllowedOrigins__0
+        sync: false   # set manually in Render dashboard
+
+      # Supabase project URL, e.g. https://abcdef.supabase.co
+      - key: Supabase__Url
+        sync: false
+
+      # Supabase service_role key (Settings → API → service_role)
+      - key: Supabase__ServiceRoleKey
+        sync: false
+
+      - key: Supabase__StorageBucket
+        value: menu-images

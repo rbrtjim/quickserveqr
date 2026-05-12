@@ -1,6 +1,17 @@
 import * as signalR from "@microsoft/signalr";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.191.28.1:5139";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5139";
+
+function getStoredToken(): string {
+  if (typeof window === "undefined") return "";
+  const stored = localStorage.getItem("quickserve_user");
+  if (!stored) return "";
+  try {
+    return JSON.parse(stored)?.token ?? "";
+  } catch {
+    return "";
+  }
+}
 
 let connection: signalR.HubConnection | null = null;
 
@@ -8,6 +19,7 @@ export function getConnection(): signalR.HubConnection {
   if (!connection) {
     connection = new signalR.HubConnectionBuilder()
       .withUrl(`${API_URL}/hubs/orders`, {
+        accessTokenFactory: getStoredToken,
         skipNegotiation: true,
         transport: signalR.HttpTransportType.WebSockets,
       })
@@ -36,18 +48,15 @@ export async function startConnection(): Promise<signalR.HubConnection> {
   if (conn.state === signalR.HubConnectionState.Disconnected) {
     try {
       await conn.start();
-      console.log("SignalR connected to:", `${API_URL}/hubs/orders`);
     } catch (err) {
-      console.error("SignalR connection failed, retrying with long polling:", err);
-      // Retry with long polling fallback
+      console.error("SignalR WebSocket failed, retrying with long polling:", err);
       connection = null;
       connection = new signalR.HubConnectionBuilder()
-        .withUrl(`${API_URL}/hubs/orders`)
+        .withUrl(`${API_URL}/hubs/orders`, { accessTokenFactory: getStoredToken })
         .withAutomaticReconnect([0, 1000, 2000, 5000, 10000, 30000])
         .configureLogging(signalR.LogLevel.Warning)
         .build();
       await connection.start();
-      console.log("SignalR connected via long polling");
       return connection;
     }
   }
@@ -57,11 +66,9 @@ export async function startConnection(): Promise<signalR.HubConnection> {
 export async function joinKitchen() {
   const conn = await startConnection();
   await conn.invoke("JoinKitchen");
-  console.log("Joined Kitchen group");
 }
 
 export async function joinTable(tableId: string) {
   const conn = await startConnection();
   await conn.invoke("JoinTable", tableId);
-  console.log("Joined Table group:", tableId);
 }

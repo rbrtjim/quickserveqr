@@ -1,0 +1,28 @@
+**/.git
+**/.gitignore
+**/README.md
+**/*.md
+
+# .NET build artifacts
+**/bin/
+**/obj/
+
+# Node modules (backend has node_modules from recharts/etc)
+**/node_modules/
+
+# Frontend — built separately, not needed for API image
+frontend/
+
+# Local SQLite database
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Dev config overrides
+**/appsettings.Development.json
+**/launchSettings.json
+
+# VS / Rider
+**/.vs/
+**/.idea/
+**/*.user

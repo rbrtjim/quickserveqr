@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("quickserve_user");
     if (stored) {
       try {
-        setUser(JSON.parse(stored));
+        setUser(JSON.parse(stored) as User);
       } catch {
         localStorage.removeItem("quickserve_user");
       }
@@ -37,24 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const saveUser = (data: any) => {
-    const u: User = {
-      token: data.token,
-      email: data.email,
-      fullName: data.fullName,
-      role: data.role,
-    };
-    setUser(u);
-    localStorage.setItem("quickserve_user", JSON.stringify(u));
+  const saveUser = (data: User) => {
+    setUser(data);
+    localStorage.setItem("quickserve_user", JSON.stringify(data));
   };
 
   const login = async (email: string, password: string) => {
-    const data = await apiLogin(email, password);
+    const data = await apiLogin(email, password) as User;
     saveUser(data);
   };
 
   const register = async (email: string, password: string, fullName: string, role: string) => {
-    const data = await apiRegister(email, password, fullName, role);
+    const data = await apiRegister(email, password, fullName, role) as User;
     saveUser(data);
   };
 

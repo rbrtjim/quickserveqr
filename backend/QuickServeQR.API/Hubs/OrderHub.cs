@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace QuickServeQR.API.Hubs;
 
 public class OrderHub : Hub
 {
+    [Authorize(Roles = "Admin,Kitchen,Waiter,Cashier")]
     public async Task JoinKitchen() =>
         await Groups.AddToGroupAsync(Context.ConnectionId, "Kitchen");
 

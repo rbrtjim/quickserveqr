@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using QuickServeQR.API.Data;
 using QuickServeQR.API.DTOs;
 using QuickServeQR.API.Models;
+using QuickServeQR.API.Services;
 
 namespace QuickServeQR.API.Controllers;
 
@@ -11,16 +13,17 @@ namespace QuickServeQR.API.Controllers;
 public class MenuController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly IWebHostEnvironment _env;
+    private readonly IImageStorageService _images;
 
-    public MenuController(AppDbContext db, IWebHostEnvironment env)
+    public MenuController(AppDbContext db, IImageStorageService images)
     {
-        _db = db;
-        _env = env;
+        _db     = db;
+        _images = images;
     }
 
     private static string[]? ParseTags(string? tags) =>
-        string.IsNullOrEmpty(tags) ? null : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string.IsNullOrEmpty(tags) ? null
+            : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     [HttpGet("categories")]
     public async Task<ActionResult<List<CategoryResponseDto>>> GetCategories()
@@ -69,6 +72,7 @@ public class MenuController : ControllerBase
     }
 
     [HttpPost("categories")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<Category>> CreateCategory(CreateCategoryDto dto)
     {
         var cat = new Category { Name = dto.Name, Description = dto.Description, SortOrder = dto.SortOrder };
@@ -78,6 +82,7 @@ public class MenuController : ControllerBase
     }
 
     [HttpPost("items")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<MenuItem>> CreateItem(CreateMenuItemDto dto)
     {
         var item = new MenuItem
@@ -92,6 +97,7 @@ public class MenuController : ControllerBase
     }
 
     [HttpPut("items/{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateItem(Guid id, UpdateMenuItemDto dto)
     {
         var item = await _db.MenuItems.FindAsync(id);
@@ -110,19 +116,20 @@ public class MenuController : ControllerBase
     }
 
     [HttpDelete("items/{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteItem(Guid id)
     {
         var item = await _db.MenuItems.FindAsync(id);
         if (item == null) return NotFound();
+        await _images.DeleteAsync(item.ImageUrl);
         _db.MenuItems.Remove(item);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
-    // ==================== IMAGE UPLOAD ====================
-
     [HttpPost("items/{id}/image")]
-    [RequestSizeLimit(5 * 1024 * 1024)] // 5MB max
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
     public async Task<IActionResult> UploadImage(Guid id, IFormFile file)
     {
         var item = await _db.MenuItems.FindAsync(id);
@@ -136,29 +143,7 @@ public class MenuController : ControllerBase
         if (!allowed.Contains(ext))
             return BadRequest("Only image files (jpg, png, webp, gif) are allowed");
 
-        // Create images directory
-        var imagesDir = Path.Combine(_env.ContentRootPath, "wwwroot", "images", "menu");
-        Directory.CreateDirectory(imagesDir);
-
-        // Delete old image if exists
-        if (!string.IsNullOrEmpty(item.ImageUrl))
-        {
-            var oldPath = Path.Combine(_env.ContentRootPath, "wwwroot", item.ImageUrl.TrimStart('/'));
-            if (System.IO.File.Exists(oldPath))
-                System.IO.File.Delete(oldPath);
-        }
-
-        // Save new image
-        var fileName = $"{item.Id}_{DateTime.UtcNow.Ticks}{ext}";
-        var filePath = Path.Combine(imagesDir, fileName);
-
-        using (var stream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
-
-        // Update database
-        item.ImageUrl = $"/images/menu/{fileName}";
+        item.ImageUrl = await _images.SaveAsync(file, item.ImageUrl);
         item.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -166,18 +151,13 @@ public class MenuController : ControllerBase
     }
 
     [HttpDelete("items/{id}/image")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteImage(Guid id)
     {
         var item = await _db.MenuItems.FindAsync(id);
         if (item == null) return NotFound();
 
-        if (!string.IsNullOrEmpty(item.ImageUrl))
-        {
-            var filePath = Path.Combine(_env.ContentRootPath, "wwwroot", item.ImageUrl.TrimStart('/'));
-            if (System.IO.File.Exists(filePath))
-                System.IO.File.Delete(filePath);
-        }
-
+        await _images.DeleteAsync(item.ImageUrl);
         item.ImageUrl = null;
         item.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();

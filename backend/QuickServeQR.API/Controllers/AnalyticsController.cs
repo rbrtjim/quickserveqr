@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using QuickServeQR.API.Data;
@@ -7,6 +8,7 @@ namespace QuickServeQR.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class AnalyticsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -16,25 +18,45 @@ public class AnalyticsController : ControllerBase
     public async Task<ActionResult<DashboardAnalyticsDto>> GetDashboard()
     {
         var today = DateTime.UtcNow.Date;
-        var todayOrders = await _db.Orders
-            .Where(o => o.CreatedAt >= today)
-            .Include(o => o.Items).ThenInclude(i => i.MenuItem)
+
+        var totalOrders = await _db.Orders.CountAsync(o => o.CreatedAt >= today);
+
+        var totalRevenue = await _db.Orders
+            .Where(o => o.CreatedAt >= today && o.PaymentStatus == "Paid")
+            .SumAsync(o => (decimal?)o.Total) ?? 0;
+
+        var activeOrders = await _db.Orders
+            .CountAsync(o => o.CreatedAt >= today
+                && o.Status != "Completed" && o.Status != "Cancelled");
+
+        var avgValue = totalOrders > 0
+            ? await _db.Orders
+                .Where(o => o.CreatedAt >= today)
+                .AverageAsync(o => (decimal?)o.Total) ?? 0
+            : 0;
+
+        var tables = await _db.Tables
+            .Select(t => new { t.IsOccupied })
             .ToListAsync();
 
-        var totalOrders = todayOrders.Count;
-        var totalRevenue = todayOrders.Where(o => o.PaymentStatus == "Paid").Sum(o => o.Total);
-        var activeOrders = todayOrders.Count(o => o.Status != "Completed" && o.Status != "Cancelled");
-        var avgValue = totalOrders > 0 ? todayOrders.Average(o => o.Total) : 0;
-        var tables = await _db.Tables.ToListAsync();
+        var topItems = await _db.Orders
+            .Where(o => o.CreatedAt >= today)
+            .SelectMany(o => o.Items)
+            .GroupBy(i => i.MenuItem!.Name)
+            .Select(g => new TopSellingItemDto(
+                g.Key ?? "Unknown",
+                g.Sum(i => i.Quantity),
+                g.Sum(i => i.UnitPrice * i.Quantity)))
+            .OrderByDescending(x => x.Quantity)
+            .Take(5)
+            .ToListAsync();
 
-        var topItems = todayOrders.SelectMany(o => o.Items)
-            .GroupBy(i => i.MenuItem?.Name ?? "Unknown")
-            .Select(g => new TopSellingItemDto(g.Key, g.Sum(i => i.Quantity), g.Sum(i => i.UnitPrice * i.Quantity)))
-            .OrderByDescending(x => x.Quantity).Take(5).ToList();
-
-        var byHour = todayOrders.GroupBy(o => o.CreatedAt.Hour)
+        var byHour = await _db.Orders
+            .Where(o => o.CreatedAt >= today)
+            .GroupBy(o => o.CreatedAt.Hour)
             .Select(g => new RevenueByHourDto(g.Key, g.Sum(o => o.Total), g.Count()))
-            .OrderBy(x => x.Hour).ToList();
+            .OrderBy(x => x.Hour)
+            .ToListAsync();
 
         return Ok(new DashboardAnalyticsDto(
             totalOrders, totalRevenue, activeOrders,

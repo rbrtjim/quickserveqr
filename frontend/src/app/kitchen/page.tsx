@@ -7,6 +7,7 @@ import { ChefHat, Clock, XCircle, ArrowLeft, RefreshCw, LogOut } from "lucide-re
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 
 const statusColors: Record<string, string> = {
   Pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
@@ -23,6 +24,7 @@ const nextLabel: Record<string, string> = { Pending: "Accept Order", Confirmed: 
 function KitchenContent() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("active");
@@ -44,7 +46,7 @@ function KitchenContent() {
 
   const handleStatus = async (orderId: string, status: OrderStatus) => {
     try { await updateOrderStatus(orderId, status); setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o))); }
-    catch { alert("Failed to update"); }
+    catch (e: any) { toast(e?.message || "Failed to update status", "error"); }
   };
 
   const handleLogout = () => { logout(); router.push("/login?redirect=/kitchen"); };

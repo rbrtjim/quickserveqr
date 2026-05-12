@@ -3,10 +3,12 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
+      // Local development
+      { protocol: "http",  hostname: "localhost" },
+      // Render-hosted API (static images served by .NET)
+      { protocol: "https", hostname: "*.onrender.com" },
+      // Supabase Storage
+      { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
 };

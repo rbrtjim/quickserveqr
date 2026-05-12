@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -33,6 +34,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto)
     {
         // Validate role

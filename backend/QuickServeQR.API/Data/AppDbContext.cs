@@ -24,5 +24,12 @@ public class AppDbContext : DbContext
             .HasIndex(t => t.QrCode).IsUnique();
         modelBuilder.Entity<StaffUser>()
             .HasIndex(s => s.Email).IsUnique();
+
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.Status);
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.TableId);
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.CreatedAt);
     }
 }
